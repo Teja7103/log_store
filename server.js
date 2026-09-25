@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
+const archiver = require('archiver');
 const fs = require('fs');
 const path = require('path');
 
@@ -64,6 +65,7 @@ app.get('/', (req, res) => {
   <li><b>GET /api/files</b> — list stored files</li>
   <li><b>GET /api/files/:filename</b> — download a file</li>
   <li><b>DELETE /api/files/:filename</b> — delete a file</li>
+  <li><b>GET /api/download-all</b> — download all files as a .zip</li>
   <li><b>GET /health</b> — health check</li>
 </ul>
 <p>curl example:<br><code>curl -F "files=@/path/to/a.log" -F "files=@/path/to/b.log" https://YOUR-SERVICE.onrender.com/api/upload</code></p>
@@ -98,6 +100,32 @@ app.get('/api/files', (req, res) => {
     }
   });
   res.json({ count: names.length, files: names.map(fileInfo) });
+});
+
+// Download all files as a zip (must be before /:filename route)
+app.get('/api/download-all', (req, res) => {
+  const names = fs.readdirSync(UPLOAD_DIR).filter((n) => {
+    if (n.startsWith('.')) return false;
+    try {
+      return fs.statSync(path.join(UPLOAD_DIR, n)).isFile();
+    } catch {
+      return false;
+    }
+  });
+  if (names.length === 0) return res.status(404).json({ error: 'No files to archive' });
+
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', `attachment; filename="files-${Date.now()}.zip"`);
+
+  const archive = archiver('zip', { zlib: { level: 9 } });
+  archive.on('error', (err) => {
+    console.error('archive error:', err);
+    if (!res.headersSent) res.status(500).json({ error: 'Failed to create archive' });
+    else res.end();
+  });
+  archive.pipe(res);
+  for (const n of names) archive.file(path.join(UPLOAD_DIR, n), { name: n });
+  archive.finalize();
 });
 
 // Download a file
