@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: log-store-upload-api
+    runtime: node
+    plan: starter # needed for persistent disk; use free without `disk` (files will be ephemeral)
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: UPLOAD_DIR
+        value: /opt/render/project/uploads
+    disk:
+      name: uploads
+      mountPath: /opt/render/project/uploads
+      sizeGB: 1
